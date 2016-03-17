@@ -1,30 +1,30 @@
 package main
 
 import (
-  "log"
-  "fmt"
-  "net/url"
-  "net/http"
-  "io/ioutil"
-  "encoding/json"
-  "time"
-  "os"
-  "os/signal"
-  "flag"
-  "golang.org/x/net/websocket"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"golang.org/x/net/websocket"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"os/signal"
+	"time"
 )
 
 type NegotiationParams struct {
-  Url string `json:"Url"`
-  ConnectionToken string
-  ConnectionId string
-  KeepAliveTimeout float32
-  DisconnectTimeout float32
-  ConnectionTimeout float32
-  TryWebSockets bool
-  ProtocolVersion string
-  TransportConnectTimeout float32
-  LogPollDelay float32
+	Url                     string `json:"Url"`
+	ConnectionToken         string
+	ConnectionId            string
+	KeepAliveTimeout        float32
+	DisconnectTimeout       float32
+	ConnectionTimeout       float32
+	TryWebSockets           bool
+	ProtocolVersion         string
+	TransportConnectTimeout float32
+	LogPollDelay            float32
 }
 
 var scheme, addr, origin, hubname, logFile string
@@ -34,79 +34,79 @@ var connectionProtocol = "webSockets" // currently no support for server sent ev
 var msgSize = make([]byte, 512)
 
 func main() {
-  log.Println("Starting SignalR Connection")
+	log.Println("Starting SignalR Connection")
 
-  flag.StringVar(&scheme, "scheme", "https", "protocol for connecting - http(s)")
-  flag.StringVar(&addr, "addr", "", "endpoint to connect to")
-  flag.StringVar(&hubname, "hubname", "", "SignalR hub to connect to")
-  flag.StringVar(&logFile, "logFile", "", "Output file for logs")
+	flag.StringVar(&scheme, "scheme", "https", "protocol for connecting - http(s)")
+	flag.StringVar(&addr, "addr", "", "endpoint to connect to")
+	flag.StringVar(&hubname, "hubname", "", "SignalR hub to connect to")
+	flag.StringVar(&logFile, "logFile", "", "Output file for logs")
 
-  flag.Parse()
+	flag.Parse()
 
-  SetupLogging()
+	SetupLogging()
 
-  if addr == ""{
-    log.Println("Address is empty")
-    return
-  }
+	if addr == "" {
+		log.Println("Address is empty")
+		return
+	}
 
-  if hubname == "" {
-    log.Println("Hubname is empty")
-    return
-  }
+	if hubname == "" {
+		log.Println("Hubname is empty")
+		return
+	}
 
-  origin = fmt.Sprintf("%s://%s", scheme, addr)
+	origin = fmt.Sprintf("%s://%s", scheme, addr)
 
-  interrupt := make(chan os.Signal, 1)
+	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-  ws, err := ConnectToSignalR()
-  if err != nil {
-    log.Println(err)
-    connectionTimer := time.NewTicker(time.Second * 30)
-    for ok := true; ok; ok = (err != nil) {
-      select {
-      case <-connectionTimer.C:
-        ws, err = ConnectToSignalR()
-        log.Println(err)
-      }
-    }
+	ws, err := ConnectToSignalR()
+	if err != nil {
+		log.Println(err)
+		connectionTimer := time.NewTicker(time.Second * 30)
+		for ok := true; ok; ok = (err != nil) {
+			select {
+			case <-connectionTimer.C:
+				ws, err = ConnectToSignalR()
+				log.Println(err)
+			}
+		}
 
-    connectionTimer.Stop()
-  }
+		connectionTimer.Stop()
+	}
 
-  ticker := time.NewTicker(time.Second * 10)
-  defer ticker.Stop()
+	ticker := time.NewTicker(time.Second * 10)
+	defer ticker.Stop()
 
-  for {
+	for {
 		select {
 		case <-ticker.C:
-      _, err := ws.Write([]byte("data="))
+			_, err := ws.Write([]byte("data="))
 			if err != nil {
 				log.Println("ERROR write:", err)
-        ws.Close()
+				ws.Close()
 
-        ticker.Stop()
+				ticker.Stop()
 				ws, err = ConnectToSignalR()
 
-        if err != nil {
-          log.Println(err)
-          connectionTimer := time.NewTicker(time.Second * 30)
-          for ok := true; ok; ok = (err != nil) {
-            select {
-            case <-connectionTimer.C:
-              ws, err = ConnectToSignalR()
-              if err != nil {
-                log.Println(err)
-              }
-            }
-          }
+				if err != nil {
+					log.Println(err)
+					connectionTimer := time.NewTicker(time.Second * 30)
+					for ok := true; ok; ok = (err != nil) {
+						select {
+						case <-connectionTimer.C:
+							ws, err = ConnectToSignalR()
+							if err != nil {
+								log.Println(err)
+							}
+						}
+					}
 
-          connectionTimer.Stop()
-        }
+					connectionTimer.Stop()
+				}
 
-        ticker = time.NewTicker(time.Second * 10)
-        defer ticker.Stop()
+				ticker = time.NewTicker(time.Second * 10)
+				defer ticker.Stop()
 			}
 		case <-interrupt:
 			log.Println("interrupt")
@@ -118,7 +118,7 @@ func main() {
 				return
 			}
 			select {
-	    case <-time.After(time.Second):
+			case <-time.After(time.Second):
 			}
 			ws.Close()
 			return
@@ -127,137 +127,137 @@ func main() {
 }
 
 func ConnectToSignalR() (*websocket.Conn, error) {
-  params, err := Negotiate(addr)
-  if err != nil {
-    return nil, err
-  }
+	params, err := Negotiate(addr)
+	if err != nil {
+		return nil, err
+	}
 
-  cli := &http.Client{}
+	cli := &http.Client{}
 
-  connectionData := "[%7B%22Name%22:%22" + hubname + "%22%7D]"
+	connectionData := "[%7B%22Name%22:%22" + hubname + "%22%7D]"
 
-  startUrl := BuildStartUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
+	startUrl := BuildStartUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
 
-  _, err = cli.Get(startUrl.String())
-  if err != nil {
-    return nil, err
-  }
+	_, err = cli.Get(startUrl.String())
+	if err != nil {
+		return nil, err
+	}
 
-  connectUrl := BuildConnectUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
+	connectUrl := BuildConnectUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
 
-  ws, err := websocket.Dial(connectUrl.String(), "", origin)
-  if err != nil {
-    return nil, err
-  }
+	ws, err := websocket.Dial(connectUrl.String(), "", origin)
+	if err != nil {
+		return nil, err
+	}
 
-  log.Printf("Connected to %s", addr)
+	log.Printf("Connected to %s", addr)
 
-  go func() {
+	go func() {
 		defer ws.Close()
 		for {
 			n, err := ws.Read(msgSize)
-      if err != nil {
-        log.Println("ERROR read:", err)
+			if err != nil {
+				log.Println("ERROR read:", err)
 				return
-      }
-      if n > 2{
-        log.Printf("Received: %s.\n", msgSize[:n])
-      }
+			}
+			if n > 2 {
+				log.Printf("Received: %s.\n", msgSize[:n])
+			}
 		}
 	}()
 
-  return ws, nil
+	return ws, nil
 }
 
 func Negotiate(addr string) (params NegotiationParams, err error) {
-  params = NegotiationParams{}
+	params = NegotiationParams{}
 
-  u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/negotiate"}
+	u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/negotiate"}
 
-  client := &http.Client{}
+	client := &http.Client{}
 
-  resp, err := client.Get(u.String())
-  if err != nil {
-    return
-  }
-  defer resp.Body.Close()
+	resp, err := client.Get(u.String())
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
 
-  body, err := ioutil.ReadAll(resp.Body)
-  if err != nil {
-    return
-  }
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
 
-  err = json.Unmarshal(body, &params)
+	err = json.Unmarshal(body, &params)
 
-  return
+	return
 }
 
 func BuildSendUrl(protocol, transport, connectionData, connectionToken string) url.URL {
-  u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/send"}
-  query := u.Query()
-  query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
-  u.RawQuery = query.Encode()
-  u.RawQuery += "&connectionData=" + connectionData
+	u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/send"}
+	query := u.Query()
+	query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
+	u.RawQuery = query.Encode()
+	u.RawQuery += "&connectionData=" + connectionData
 
-  return u
+	return u
 }
 
 func BuildStartUrl(protocol, transport, connectionData, connectionToken string) url.URL {
-  u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/start"}
-  query := u.Query()
-  query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
-  u.RawQuery = query.Encode()
-  u.RawQuery = query.Encode()
-  u.RawQuery += "&connectionData=" + connectionData
+	u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/start"}
+	query := u.Query()
+	query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
+	u.RawQuery = query.Encode()
+	u.RawQuery = query.Encode()
+	u.RawQuery += "&connectionData=" + connectionData
 
-  return u
+	return u
 }
 
 func BuildConnectUrl(protocol, transport, connectionData, connectionToken string) url.URL {
-  u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/connect"}
-  query := u.Query()
-  query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
-  u.RawQuery = query.Encode()
-  u.RawQuery = query.Encode()
-  u.RawQuery += "&connectionData=" + connectionData
+	u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/connect"}
+	query := u.Query()
+	query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
+	u.RawQuery = query.Encode()
+	u.RawQuery = query.Encode()
+	u.RawQuery += "&connectionData=" + connectionData
 
-  return u
+	return u
 }
 
 func AppendCommonParameters(query url.Values,
-  protocol, transport, connectionData, connectionToken string) url.Values {
-  query = AppendProtocol(query, protocol)
-  query = AppendTransport(query, transport)
-  query = AppendConnectionToken(query, connectionToken)
+	protocol, transport, connectionData, connectionToken string) url.Values {
+	query = AppendProtocol(query, protocol)
+	query = AppendTransport(query, transport)
+	query = AppendConnectionToken(query, connectionToken)
 
-  return query
+	return query
 }
 
 func AppendProtocol(query url.Values, protocol string) url.Values {
-  query.Set("clientProtocol", protocol)
-  return query
+	query.Set("clientProtocol", protocol)
+	return query
 }
 
 func AppendTransport(query url.Values, transport string) url.Values {
-  query.Set("transport", transport)
-  return query
+	query.Set("transport", transport)
+	return query
 }
 
 func AppendConnectionData(query url.Values, connectionData string) url.Values {
-  query.Set("connectionData", connectionData)
-  return query
+	query.Set("connectionData", connectionData)
+	return query
 }
 
 func AppendConnectionToken(query url.Values, connectionToken string) url.Values {
-  query.Set("connectionToken", connectionToken)
-  return query
+	query.Set("connectionToken", connectionToken)
+	return query
 }
 
 func SetupLogging() {
-  if logFile == ""{
-    return
-  }
-  
+	if logFile == "" {
+		return
+	}
+
 	if !FileExists(logFile) {
 		nf, err := os.Create(logFile)
 		if err != nil {
