@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"os"
 	"os/signal"
 	"time"
@@ -34,16 +35,12 @@ var connectionProtocol = "webSockets" // currently no support for server sent ev
 var msgSize = make([]byte, 512)
 
 func main() {
-	log.Println("Starting SignalR Connection")
-
 	flag.StringVar(&scheme, "scheme", "https", "protocol for connecting - http(s)")
 	flag.StringVar(&addr, "addr", "", "endpoint to connect to")
 	flag.StringVar(&hubname, "hubname", "", "SignalR hub to connect to")
 	flag.StringVar(&logFile, "logFile", "", "Output file for logs")
 
 	flag.Parse()
-
-	SetupLogging()
 
 	if addr == "" {
 		log.Println("Address is empty")
@@ -55,6 +52,10 @@ func main() {
 		return
 	}
 
+	SetupLogging()
+
+	log.Println("Starting SignalR Connection")
+
 	origin = fmt.Sprintf("%s://%s", scheme, addr)
 
 	interrupt := make(chan os.Signal, 1)
@@ -63,12 +64,20 @@ func main() {
 	ws, err := ConnectToSignalR()
 	if err != nil {
 		log.Println(err)
+		if strings.Contains(err.Error(), "no such host"){
+			os.Exit(1)
+		}
 		connectionTimer := time.NewTicker(time.Second * 30)
 		for ok := true; ok; ok = (err != nil) {
 			select {
 			case <-connectionTimer.C:
 				ws, err = ConnectToSignalR()
-				log.Println(err)
+				if err != nil {
+					if strings.Contains(err.Error(), "no such host"){
+						os.Exit(1)
+					}
+					log.Println(err)
+				}
 			}
 		}
 
