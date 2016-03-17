@@ -147,6 +147,8 @@ func ConnectToSignalR() (*websocket.Conn, error) {
     return nil, err
   }
 
+  log.Printf("Connected to %s", addr)
+
   go func() {
 		defer ws.Close()
 		for {
