@@ -10,6 +10,7 @@ import (
   "time"
   "os"
   "os/signal"
+  "flag"
   "golang.org/x/net/websocket"
 )
 
@@ -26,14 +27,18 @@ type NegotiationParams struct {
   LogPollDelay float32
 }
 
-var scheme = "https"
-var addr = ""
-var origin = fmt.Sprintf("%s://%s", scheme, addr)
-
-var hubname = ""
+var scheme, addr, origin, hubname string
 
 func main() {
   log.Println("Starting SignalR Connection")
+
+  flag.StringVar(&scheme, "scheme", "https", "protocol for connecting - http(s)")
+  flag.StringVar(&addr, "addr", "", "endpoint to connect to")
+  flag.StringVar(&hubname, "hubname", "", "SignalR hub to connect to")
+
+  flag.Parse()
+
+  origin = fmt.Sprintf("%s://%s", scheme, addr)
 
   interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
