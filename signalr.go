@@ -29,6 +29,8 @@ type NegotiationParams struct {
 
 var scheme, addr, origin, hubname string
 
+var connectionProtocol = "webSockets" // currently no support for server sent events
+
 func main() {
   log.Println("Starting SignalR Connection")
 
@@ -47,9 +49,9 @@ func main() {
 
   cli := &http.Client{}
 
-  connectionData := "[%7B%22Name%22:%" + hubname + "%22%7D]"
+  connectionData := "[%7B%22Name%22:%22" + hubname + "%22%7D]"
 
-  startUrl := BuildStartUrl(params.ProtocolVersion, "webSockets", connectionData, params.ConnectionToken)
+  startUrl := BuildStartUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
 
   resp, err := cli.Get(startUrl.String())
   if err != nil {
@@ -61,7 +63,7 @@ func main() {
 
   log.Println(string(body))
 
-  connectUrl := BuildConnectUrl(params.ProtocolVersion, "webSockets", connectionData, params.ConnectionToken)
+  connectUrl := BuildConnectUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
 
   ws, err := websocket.Dial(connectUrl.String(), "", origin)
   if err != nil {
@@ -141,10 +143,7 @@ func Negotiate(addr string) (params NegotiationParams) {
   err = json.Unmarshal(body, &params)
   if err != nil {
     log.Println(err)
-    return
   }
-
-  // log.Println(params)
 
   return
 }
@@ -155,8 +154,6 @@ func BuildSendUrl(protocol, transport, connectionData, connectionToken string) u
   query = AppendCommonParameters(query, protocol, transport, connectionData, connectionToken)
   u.RawQuery = query.Encode()
   u.RawQuery += "&connectionData=" + connectionData
-
-  // log.Printf("Send URL: %s\n", u.String())
 
   return u
 }
@@ -169,8 +166,6 @@ func BuildStartUrl(protocol, transport, connectionData, connectionToken string) 
   u.RawQuery = query.Encode()
   u.RawQuery += "&connectionData=" + connectionData
 
-  // log.Printf("Start URL: %s\n", u.String())
-
   return u
 }
 
@@ -181,8 +176,6 @@ func BuildConnectUrl(protocol, transport, connectionData, connectionToken string
   u.RawQuery = query.Encode()
   u.RawQuery = query.Encode()
   u.RawQuery += "&connectionData=" + connectionData
-
-  // log.Printf("Connect URL: %s\n", u.String())
 
   return u
 }
