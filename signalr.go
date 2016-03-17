@@ -27,7 +27,7 @@ type NegotiationParams struct {
   LogPollDelay float32
 }
 
-var scheme, addr, origin, hubname string
+var scheme, addr, origin, hubname, logFile string
 
 var connectionProtocol = "webSockets" // currently no support for server sent events
 
@@ -39,8 +39,11 @@ func main() {
   flag.StringVar(&scheme, "scheme", "https", "protocol for connecting - http(s)")
   flag.StringVar(&addr, "addr", "", "endpoint to connect to")
   flag.StringVar(&hubname, "hubname", "", "SignalR hub to connect to")
+  flag.StringVar(&logFile, "logFile", "", "Output file for logs")
 
   flag.Parse()
+
+  SetupLogging()
 
   if addr == ""{
     log.Println("Address is empty")
@@ -248,4 +251,34 @@ func AppendConnectionData(query url.Values, connectionData string) url.Values {
 func AppendConnectionToken(query url.Values, connectionToken string) url.Values {
   query.Set("connectionToken", connectionToken)
   return query
+}
+
+func SetupLogging() {
+  if logFile == ""{
+    return
+  }
+  
+	if !FileExists(logFile) {
+		nf, err := os.Create(logFile)
+		if err != nil {
+			fmt.Println("Error - Cannot create log file at " + logFile)
+		}
+		nf.Close()
+	}
+	f, err := os.OpenFile(logFile, os.O_RDWR|os.O_APPEND, 0660)
+	if err != nil {
+		fmt.Println("Error - Cannot get to log file at " + logFile)
+		panic(err)
+	}
+	log.SetOutput(f)
+	log.Print("---")
+}
+
+func FileExists(file string) bool {
+	if _, err := os.Stat(file); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }
