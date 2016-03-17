@@ -31,6 +31,8 @@ var scheme, addr, origin, hubname string
 
 var connectionProtocol = "webSockets" // currently no support for server sent events
 
+var msgSize = make([]byte, 512)
+
 func main() {
   log.Println("Starting SignalR Connection")
 
@@ -40,67 +42,69 @@ func main() {
 
   flag.Parse()
 
+  if addr == ""{
+    log.Println("Address is empty")
+    return
+  }
+
+  if hubname == "" {
+    log.Println("Hubname is empty")
+    return
+  }
+
   origin = fmt.Sprintf("%s://%s", scheme, addr)
 
   interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-  params := Negotiate(addr)
-
-  cli := &http.Client{}
-
-  connectionData := "[%7B%22Name%22:%22" + hubname + "%22%7D]"
-
-  startUrl := BuildStartUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
-
-  resp, err := cli.Get(startUrl.String())
+  ws, err := ConnectToSignalR()
   if err != nil {
-    panic(err)
-  }
-  defer resp.Body.Close()
-
-  body, _ := ioutil.ReadAll(resp.Body)
-
-  log.Println(string(body))
-
-  connectUrl := BuildConnectUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
-
-  ws, err := websocket.Dial(connectUrl.String(), "", origin)
-  if err != nil {
-    panic(err)
-  }
-
-  defer ws.Close()
-
-  done := make(chan struct{})
-
-  var msgSize = make([]byte, 512)
-
-  ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-  go func() {
-		defer ws.Close()
-		defer close(done)
-		for {
-			n, err := ws.Read(msgSize)
-      if err != nil {
-        log.Println("read:", err)
-				return
+    log.Println(err)
+    connectionTimer := time.NewTicker(time.Second * 30)
+    for ok := true; ok; ok = (err != nil) {
+      select {
+      case <-connectionTimer.C:
+        ws, err = ConnectToSignalR()
+        log.Println(err)
       }
-			log.Printf("Received: %s.\n", msgSize[:n])
-		}
-	}()
+    }
+
+    connectionTimer.Stop()
+  }
+
+  ticker := time.NewTicker(time.Second * 10)
+  defer ticker.Stop()
 
   for {
 		select {
 		case <-ticker.C:
-			msg, err := ws.Write([]byte("data="))
+      _, err := ws.Write([]byte("data="))
 			if err != nil {
-				log.Println("write:", err)
-				return
+				log.Println("ERROR write:", err)
+        ws.Close()
+
+        ticker.Stop()
+				ws, err = ConnectToSignalR()
+
+        if err != nil {
+          log.Println(err)
+          connectionTimer := time.NewTicker(time.Second * 30)
+          for ok := true; ok; ok = (err != nil) {
+            select {
+            case <-connectionTimer.C:
+              ws, err = ConnectToSignalR()
+              if err != nil {
+                log.Println(err)
+              }
+            }
+          }
+
+          connectionTimer.Stop()
+        }
+
+        ticker = time.NewTicker(time.Second * 10)
+        defer ticker.Stop()
 			}
-      log.Println("Msg: ", msg)
 		case <-interrupt:
 			log.Println("interrupt")
 			// To cleanly close a connection, a client should send a close
@@ -111,17 +115,56 @@ func main() {
 				return
 			}
 			select {
-			case <-done:
-			case <-time.After(time.Second):
+	    case <-time.After(time.Second):
 			}
 			ws.Close()
 			return
 		}
 	}
-
 }
 
-func Negotiate(addr string) (params NegotiationParams) {
+func ConnectToSignalR() (*websocket.Conn, error) {
+  params, err := Negotiate(addr)
+  if err != nil {
+    return nil, err
+  }
+
+  cli := &http.Client{}
+
+  connectionData := "[%7B%22Name%22:%22" + hubname + "%22%7D]"
+
+  startUrl := BuildStartUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
+
+  _, err = cli.Get(startUrl.String())
+  if err != nil {
+    return nil, err
+  }
+
+  connectUrl := BuildConnectUrl(params.ProtocolVersion, connectionProtocol, connectionData, params.ConnectionToken)
+
+  ws, err := websocket.Dial(connectUrl.String(), "", origin)
+  if err != nil {
+    return nil, err
+  }
+
+  go func() {
+		defer ws.Close()
+		for {
+			n, err := ws.Read(msgSize)
+      if err != nil {
+        log.Println("ERROR read:", err)
+				return
+      }
+      if n > 2{
+        log.Printf("Received: %s.\n", msgSize[:n])
+      }
+		}
+	}()
+
+  return ws, nil
+}
+
+func Negotiate(addr string) (params NegotiationParams, err error) {
   params = NegotiationParams{}
 
   u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/negotiate"}
@@ -130,20 +173,16 @@ func Negotiate(addr string) (params NegotiationParams) {
 
   resp, err := client.Get(u.String())
   if err != nil {
-    panic(err)
+    return
   }
   defer resp.Body.Close()
 
   body, err := ioutil.ReadAll(resp.Body)
   if err != nil {
-    log.Println(err)
     return
   }
 
   err = json.Unmarshal(body, &params)
-  if err != nil {
-    log.Println(err)
-  }
 
   return
 }
