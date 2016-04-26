@@ -16,8 +16,9 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+// NegotiationParams The params for negotiating a SignalR connection
 type NegotiationParams struct {
-	Url                     string `json:"Url"`
+	URL                     string `json:"Url"`
 	ConnectionToken         string
 	ConnectionId            string
 	KeepAliveTimeout        float32
@@ -136,6 +137,7 @@ func main() {
 	}
 }
 
+// ConnectToSignalR Starts the connection to SignalR hub
 func ConnectToSignalR() (*websocket.Conn, error) {
 	params, err := Negotiate(addr)
 	if err != nil {
@@ -179,6 +181,7 @@ func ConnectToSignalR() (*websocket.Conn, error) {
 	return ws, nil
 }
 
+// Negotiate Negotiates with the hub
 func Negotiate(addr string) (params NegotiationParams, err error) {
 	params = NegotiationParams{}
 
@@ -202,6 +205,7 @@ func Negotiate(addr string) (params NegotiationParams, err error) {
 	return
 }
 
+// BuildSendUrl Builds the url for sending data
 func BuildSendUrl(protocol, transport, connectionData, connectionToken string) url.URL {
 	u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/send"}
 	query := u.Query()
@@ -212,6 +216,7 @@ func BuildSendUrl(protocol, transport, connectionData, connectionToken string) u
 	return u
 }
 
+// BuildStartUrl Builds the Url for starting the session
 func BuildStartUrl(protocol, transport, connectionData, connectionToken string) url.URL {
 	u := url.URL{Scheme: scheme, Host: addr, Path: "/signalr/start"}
 	query := u.Query()
@@ -223,6 +228,7 @@ func BuildStartUrl(protocol, transport, connectionData, connectionToken string) 
 	return u
 }
 
+// BuildConnectUrl Builds the Url for connecting
 func BuildConnectUrl(protocol, transport, connectionData, connectionToken string) url.URL {
 	u := url.URL{Scheme: "wss", Host: addr, Path: "/signalr/connect"}
 	query := u.Query()
@@ -234,6 +240,7 @@ func BuildConnectUrl(protocol, transport, connectionData, connectionToken string
 	return u
 }
 
+// AppendCommonParameters Appends the common parameters for a connection
 func AppendCommonParameters(query url.Values,
 	protocol, transport, connectionData, connectionToken string) url.Values {
 	query = AppendProtocol(query, protocol)
@@ -243,26 +250,31 @@ func AppendCommonParameters(query url.Values,
 	return query
 }
 
+// AppendProtocol Appends the protocol to the query
 func AppendProtocol(query url.Values, protocol string) url.Values {
 	query.Set("clientProtocol", protocol)
 	return query
 }
 
+// AppendTransport Appends the transport type to the query
 func AppendTransport(query url.Values, transport string) url.Values {
 	query.Set("transport", transport)
 	return query
 }
 
+// AppendConnectionData Appends the connection data to the query
 func AppendConnectionData(query url.Values, connectionData string) url.Values {
 	query.Set("connectionData", connectionData)
 	return query
 }
 
+// AppendConnectionToken Appends the connection token to the query
 func AppendConnectionToken(query url.Values, connectionToken string) url.Values {
 	query.Set("connectionToken", connectionToken)
 	return query
 }
 
+// SetupLogging sets up logging for either a file or console
 func SetupLogging() {
 	if logFile == "" {
 		return
@@ -284,6 +296,7 @@ func SetupLogging() {
 	log.Print("---")
 }
 
+// FileExists Checks if the file exists
 func FileExists(file string) bool {
 	if _, err := os.Stat(file); err != nil {
 		if os.IsNotExist(err) {
