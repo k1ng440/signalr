@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 type NegotiationParams struct {
@@ -64,7 +65,7 @@ func main() {
 	ws, err := ConnectToSignalR()
 	if err != nil {
 		log.Println(err)
-		if strings.Contains(err.Error(), "no such host"){
+		if strings.Contains(err.Error(), "no such host") {
 			os.Exit(1)
 		}
 		connectionTimer := time.NewTicker(time.Second * 30)
@@ -73,7 +74,7 @@ func main() {
 			case <-connectionTimer.C:
 				ws, err = ConnectToSignalR()
 				if err != nil {
-					if strings.Contains(err.Error(), "no such host"){
+					if strings.Contains(err.Error(), "no such host") {
 						os.Exit(1)
 					}
 					log.Println(err)
@@ -90,7 +91,7 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			_, err := ws.Write([]byte("data="))
+			_, err := ws.Write([]byte(""))
 			if err != nil {
 				log.Println("ERROR write:", err)
 				ws.Close()
